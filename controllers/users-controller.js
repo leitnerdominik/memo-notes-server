@@ -1,10 +1,17 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { validationResult } = require('express-validator');
 
 const HttpError = require('../models/http-error');
 const User = require('../models/user');
 
 const signup = async (req, res, next) => {
+  const errors = validationResult(req);
+
+  if (!errors.isEmpty()) {
+    return next(new HttpError('Invalid inputs!', 422));
+  }
+
   const { name, email, password, passwordConfirm } = req.body;
 
   let existingUser;
@@ -45,11 +52,9 @@ const signup = async (req, res, next) => {
 
   let token;
   try {
-    token = jwt.sign(
-      { userId: createdUser._id },
-      process.env.JWT_KEY,
-      { expiresIn: '1h' }
-    );
+    token = jwt.sign({ userId: createdUser._id }, process.env.JWT_KEY, {
+      expiresIn: '1h',
+    });
   } catch (err) {
     console.log(err);
     return next(new HttpError('Signing up failed, please try again later.'));
@@ -64,6 +69,12 @@ const signup = async (req, res, next) => {
 };
 
 const login = async (req, res, next) => {
+  const errors = validationResult(req);
+
+  if (!errors.isEmpty()) {
+    return next(new HttpError('Invalid inputs!', 422));
+  }
+
   const { email, password } = req.body;
 
   let loginUser;
@@ -96,11 +107,9 @@ const login = async (req, res, next) => {
 
   let token;
   try {
-    token = jwt.sign(
-      { userId: loginUser.id },
-      process.env.JWT_KEY,
-      { expiresIn: '1h' }
-    );
+    token = jwt.sign({ userId: loginUser.id }, process.env.JWT_KEY, {
+      expiresIn: '1h',
+    });
   } catch (err) {
     console.log(err);
     return next(new HttpError('Logging in failed. Please try again.'));
@@ -135,30 +144,36 @@ const signupNameless = async (req, res, next) => {
   res.status(201).json({ message: 'User created!', user: user, token: token });
 };
 
-const loginNameless = async(req, res, next) => {
+const loginNameless = async (req, res, next) => {
+  const errors = validationResult(req);
+
+  if (!errors.isEmpty()) {
+    return next(new HttpError('Invalid inputs!', 422));
+  }
   const { userId } = req.body;
 
   let user;
   try {
     user = await User.findById(userId);
-  } catch(err) {
+  } catch (err) {
     return next(new HttpError('Logging in failed. Please try again.'));
   }
 
-  if(!user) {
+  if (!user) {
     return next(new HttpError('User not found with the provided id.', 404));
   }
 
   let token;
   try {
-    token = jwt.sign({ userId: user.id}, process.env.JWT_KEY, { expiresIn: '1h'});
-  } catch(err) {
+    token = jwt.sign({ userId: user.id }, process.env.JWT_KEY, {
+      expiresIn: '1h',
+    });
+  } catch (err) {
     return next(new HttpError('Logging in failed. Please try again.'));
   }
 
-  res.json({message: 'Logged in!', user: user, token: token});
-
-}
+  res.json({ message: 'Logged in!', user: user, token: token });
+};
 
 exports.signup = signup;
 exports.login = login;

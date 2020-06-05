@@ -22,8 +22,8 @@ const createNote = async (req, res, next) => {
   }
 
   const newNote = new Note({
-    title,
-    content,
+    title: title || '',
+    content: content || '',
     creator: userId,
   });
 
@@ -37,6 +37,14 @@ const createNote = async (req, res, next) => {
   } catch (err) {
     console.log(err);
     return next(new HttpError('Creating note failed. Please try again.'));
+  }
+
+  const createdNote = {
+    title: newNote.title,
+    content: newNote.content,
+    public: newNote.public,
+    id: newNote._id,
+    
   }
 
   res.status(201).json({ message: 'Note created!', note: newNote });
@@ -60,14 +68,12 @@ const updateNote = async (req, res, next) => {
     );
   }
 
-  // TODO: uebrpeufen ob creator ungleich der authentifizierte nutzer ist
-  // mittels middleware
-  if(changedNote.creator.toString() !== req.userData.userId) {
+  if (changedNote.creator.toString() !== req.userData.userId) {
     return next(new HttpError('You are not allowed to change this note.', 403));
   }
 
-  changedNote.title = title;
-  changedNote.content = content;
+  changedNote.title = title || '';
+  changedNote.content = content || '';
 
   try {
     await changedNote.save();
@@ -82,7 +88,6 @@ const deleteNote = async (req, res, next) => {
   const { noteId } = req.params;
 
   let note;
-  let user;
 
   try {
     note = await Note.findById(noteId).populate('creator');
@@ -105,16 +110,97 @@ const deleteNote = async (req, res, next) => {
   try {
     const sess = await mongoose.startSession();
     sess.startTransaction();
-    await note.remove({session: sess});
+    await note.remove({ session: sess });
     note.creator.notes.pull(note);
-    await note.creator.save({session: sess});
+    await note.creator.save({ session: sess });
     await sess.commitTransaction();
   } catch (err) {}
 
-  // TODO: response anpassen, zuviele unnoetige daten werden uebergebn
-  res.json({ message: 'Note deleted!', note: note });
+  res.json({ message: 'Note deleted!' });
 };
+
+const publishNote = async (req, res, next) => {
+  const { noteId } = req.params;
+
+  let note;
+  try {
+    note = await Note.findById(noteId);
+  } catch (err) {
+    return next(new HttpError('Publishing failed. Please try again.'));
+  }
+
+  if (!note) {
+    return next(
+      new HttpError('Could not find note with the provided id.', 404)
+    );
+  }
+
+  if(note.creator.toString() !== req.userData.userId) {
+    return next(new HttpError('You are not allowed to publish this note.', 403))
+  }
+
+  note.public = true;
+
+  try {
+    await note.save();
+  } catch(err) {
+    return next(new HttpError('Publishing failed. Please try again.'))
+  }
+
+  res.json({message: 'Note published!'})
+};
+
+const getNote = async (req, res, next) => {
+  // userId ist optional, falls das Note nicht public ist
+  // und der Benutzer der Besitzer sollte er das Note dennoch sehen.
+  const { noteId, userId } = req.params;
+  console.log(noteId, userId);
+
+
+  let note;
+  try {
+    note = await Note.findById(noteId).populate('creator');
+  } catch(err) {
+    return next(new HttpError('Getting note failed. Please try again.'));
+  }
+
+  if(!note) {
+    return next(new HttpError('Could not fetch note with the provided id.'), 404);
+  }
+
+  if(note.creator._id.toString() !== userId && !note.public) {
+    return next(new HttpError('You are not allowed to fetch this note.', 403))
+  }
+
+  const fetchedNote = {
+    title: note.title,
+    content: note.content,
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+  }
+
+  res.json({message: 'Note fetched!', note: fetchedNote});
+}
+
+const getNotes = async (req, res, next) => {
+
+  let notes;
+  try {
+    notes = await Note.find({creator: req.userData.userId}, '-creator -__v');
+  } catch(err) {
+    return next(new HttpError('Getting notes failed. Please try again.'))
+  }
+
+  if(!notes) {
+    return next(new HttpError('Could not find any note for this user.', 404));
+  }
+
+  res.json({message: 'Notes fetched!', notes: notes})
+}
 
 exports.createNote = createNote;
 exports.updateNote = updateNote;
 exports.deleteNote = deleteNote;
+exports.publishNote = publishNote;
+exports.getNote = getNote;
+exports.getNotes = getNotes;
