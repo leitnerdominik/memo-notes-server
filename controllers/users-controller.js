@@ -5,7 +5,6 @@ const HttpError = require('../models/http-error');
 const User = require('../models/user');
 
 const signup = async (req, res, next) => {
-
   const { name, email, password, passwordConfirm } = req.body;
 
   let existingUser;
@@ -47,7 +46,7 @@ const signup = async (req, res, next) => {
   let token;
   try {
     token = jwt.sign(
-      { userId: createdUser._id, email: createdUser.email, token: token },
+      { userId: createdUser._id },
       process.env.JWT_KEY,
       { expiresIn: '1h' }
     );
@@ -56,50 +55,55 @@ const signup = async (req, res, next) => {
     return next(new HttpError('Signing up failed, please try again later.'));
   }
 
-  res
-    .status(201)
-    .json({
-      message: 'User created!',
-      userId: createdUser.id,
-      email: createdUser.email,
-      token: token,
-    });
+  res.status(201).json({
+    message: 'User created!',
+    userId: createdUser.id,
+    email: createdUser.email,
+    token: token,
+  });
 };
 
 const login = async (req, res, next) => {
   const { email, password } = req.body;
-  console.log(email, password);
 
   let loginUser;
   try {
-    loginUser = await User.findOne({ email: email});
-  } catch(err) {
+    loginUser = await User.findOne({ email: email });
+  } catch (err) {
     console.log(err);
-    return next(new HttpError('Invalid credentials, could not log you in.', 403))
+    return next(
+      new HttpError('Invalid credentials, could not log you in.', 403)
+    );
   }
 
-  if(!loginUser) {
-    return next(new HttpError('User not found. Please sign up.'))
+  if (!loginUser) {
+    return next(new HttpError('User not found. Please sign up.'));
   }
 
   let equalPasswords;
   try {
     equalPasswords = await bcrypt.compare(password, loginUser.password);
-  } catch(err) {
+  } catch (err) {
     console.log(err);
-    return next(new HttpError('Could not login. Please try agin.'))
+    return next(new HttpError('Could not login. Please try agin.'));
   }
 
-  if(!equalPasswords) {
-    return next(new HttpError('Invalid credentials, could not log you in.', 403))
+  if (!equalPasswords) {
+    return next(
+      new HttpError('Invalid credentials, could not log you in.', 403)
+    );
   }
 
   let token;
   try {
-    token = jwt.sign({userId: loginUser.id, email: loginUser.email}, process.env.JWT_KEY, {expiresIn: '1h'});
-  } catch(err) {
+    token = jwt.sign(
+      { userId: loginUser.id },
+      process.env.JWT_KEY,
+      { expiresIn: '1h' }
+    );
+  } catch (err) {
     console.log(err);
-    return next(new HttpError('Logging in failed. Please try again.'))
+    return next(new HttpError('Logging in failed. Please try again.'));
   }
 
   res.json({
@@ -107,10 +111,56 @@ const login = async (req, res, next) => {
     userId: loginUser.id,
     email: loginUser.email,
     token: token,
-  })
+  });
+};
 
+const signupNameless = async (req, res, next) => {
+  let user;
+  try {
+    user = new User();
+    await user.save();
+  } catch (err) {
+    return next(new HttpError('Unable to create user.'));
+  }
+
+  let token;
+  try {
+    token = jwt.sign({ userId: user.id }, process.env.JWT_KEY, {
+      expiresIn: '1h',
+    });
+  } catch (err) {
+    return next(new HttpError('Signing in failed. Please try again.'));
+  }
+
+  res.status(201).json({ message: 'User created!', user: user, token: token });
+};
+
+const loginNameless = async(req, res, next) => {
+  const { userId } = req.body;
+
+  let user;
+  try {
+    user = await User.findById(userId);
+  } catch(err) {
+    return next(new HttpError('Logging in failed. Please try again.'));
+  }
+
+  if(!user) {
+    return next(new HttpError('User not found with the provided id.', 404));
+  }
+
+  let token;
+  try {
+    token = jwt.sign({ userId: user.id}, process.env.JWT_KEY, { expiresIn: '1h'});
+  } catch(err) {
+    return next(new HttpError('Logging in failed. Please try again.'));
+  }
+
+  res.json({message: 'Logged in!', user: user, token: token});
 
 }
 
 exports.signup = signup;
 exports.login = login;
+exports.signupNameless = signupNameless;
+exports.loginNameless = loginNameless;

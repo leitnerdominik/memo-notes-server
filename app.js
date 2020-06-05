@@ -3,12 +3,14 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 
 const usersRoute = require('./routes/users-routes');
+const notesRoute = require('./routes/notes-routes');
 
 const app = express();
 
 app.use(bodyParser.json());
 
 app.use('/api/users', usersRoute);
+app.use('/api/notes', notesRoute);
 
 app.use((error, req, res, next) => {
   if (res.headerSent) {
