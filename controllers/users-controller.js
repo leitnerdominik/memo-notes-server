@@ -62,9 +62,13 @@ const signup = async (req, res, next) => {
 
   res.status(201).json({
     message: 'User created!',
-    userId: createdUser.id,
-    email: createdUser.email,
-    token: token,
+    user: {
+      userId: createdUser.id,
+      email: createdUser.email,
+      token: token,
+      username: createdUser.name,
+    }
+
   });
 };
 
@@ -115,11 +119,16 @@ const login = async (req, res, next) => {
     return next(new HttpError('Logging in failed. Please try again.'));
   }
 
+  console.log(loginUser);
+
   res.json({
     message: 'Logged in!',
-    userId: loginUser.id,
-    email: loginUser.email,
-    token: token,
+    user: {
+      email: loginUser.email,
+      username: loginUser.name,
+      userId: loginUser.id,
+      token: token,
+    }
   });
 };
 
